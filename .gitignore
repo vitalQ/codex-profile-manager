@@ -1,0 +1,8 @@
+build/bin
+node_modules
+frontend/dist
+
+# Ignore any dot-directories (e.g. .omc, .omx, .vscode, .idea)
+.*/
+# Keep GitHub Actions config tracked
+!.github/
