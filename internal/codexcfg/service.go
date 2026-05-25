@@ -89,13 +89,19 @@ func EnsureManagedCustomProvider(path, baseURL string) error {
 		return fmt.Errorf("检测到非 Codex Profile Manager 管理的 custom provider 配置，请先手动处理 config.toml")
 	}
 
+	// Extract user-added extra lines from existing managed block before replacing.
+	var extraLines []string
+	if ok {
+		extraLines = ParseExtraLines(content[start:end])
+	}
+
 	content = stripManagedModelProviderLine(content)
 	start, end, ok, err = managedBlockBounds(content)
 	if err != nil {
 		return err
 	}
 
-	block := renderManagedBlock(baseURL)
+	block := renderManagedBlock(baseURL, extraLines)
 	if ok {
 		content = content[:start] + block + content[end:]
 	} else {
@@ -154,17 +160,55 @@ func readConfig(path string) (string, error) {
 	return strings.ReplaceAll(string(payload), "\r\n", "\n"), nil
 }
 
-func renderManagedBlock(baseURL string) string {
-	return strings.Join([]string{
+func renderManagedBlock(baseURL string, extraLines []string) string {
+	lines := []string{
 		StartMarker,
 		`[model_providers.custom]`,
 		`name = "custom"`,
 		`wire_api = "responses"`,
 		`requires_openai_auth = true`,
 		fmt.Sprintf(`base_url = %q`, baseURL),
-		EndMarker,
-		"",
-	}, "\n")
+	}
+	lines = append(lines, extraLines...)
+	lines = append(lines, EndMarker, "")
+	return strings.Join(lines, "\n")
+}
+
+// managedKeys are the keys that renderManagedBlock always generates.
+// parseExtraLines excludes these so they don't get duplicated.
+var managedKeys = map[string]bool{
+	"name":                  true,
+	"wire_api":              true,
+	"requires_openai_auth":  true,
+	"base_url":              true,
+}
+
+// ParseExtraLines extracts user-added lines from an existing managed block,
+// excluding markers, the section header, blank lines, and known managed keys.
+func ParseExtraLines(block string) []string {
+	var extra []string
+	for _, line := range strings.Split(block, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		// Skip markers and section header.
+		if trimmed == StartMarker || trimmed == EndMarker {
+			continue
+		}
+		if trimmed == "[model_providers.custom]" {
+			continue
+		}
+		// Check if this line is a known managed key (key = value format).
+		if eqIdx := strings.Index(trimmed, "="); eqIdx > 0 {
+			key := strings.TrimSpace(trimmed[:eqIdx])
+			if managedKeys[key] {
+				continue
+			}
+		}
+		extra = append(extra, line)
+	}
+	return extra
 }
 
 func managedBlockBounds(content string) (int, int, bool, error) {

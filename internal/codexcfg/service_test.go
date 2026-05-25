@@ -148,3 +148,77 @@ func TestEnsureManagedCustomProviderRejectsUnmanagedConflict(t *testing.T) {
 		t.Fatalf("expected unmanaged conflict error")
 	}
 }
+
+func TestEnsureManagedCustomProviderPreservesExtraKeys(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "config.toml")
+	// Existing config with user-added extra keys inside managed block.
+	if err := os.WriteFile(path, []byte(strings.Join([]string{
+		`model_provider = "custom"`,
+		"",
+		codexcfg.StartMarker,
+		`[model_providers.custom]`,
+		`name = "custom"`,
+		`wire_api = "responses"`,
+		`requires_openai_auth = true`,
+		`base_url = "https://old.example/v1"`,
+		`supports_websockets = true`,
+		`supports_streaming = true`,
+		codexcfg.EndMarker,
+		"",
+	}, "\n")), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	// Switch to a new base URL — extra keys should be preserved.
+	if err := codexcfg.EnsureManagedCustomProvider(path, "https://new.example/v1"); err != nil {
+		t.Fatalf("EnsureManagedCustomProvider() error = %v", err)
+	}
+
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	content := string(payload)
+	if !strings.Contains(content, `base_url = "https://new.example/v1"`) {
+		t.Fatalf("expected updated base_url: %s", content)
+	}
+	if !strings.Contains(content, `supports_websockets = true`) {
+		t.Fatalf("expected supports_websockets to be preserved: %s", content)
+	}
+	if !strings.Contains(content, `supports_streaming = true`) {
+		t.Fatalf("expected supports_streaming to be preserved: %s", content)
+	}
+	if strings.Contains(content, "old.example") {
+		t.Fatalf("expected old base_url to be replaced: %s", content)
+	}
+}
+
+func TestParseExtraLines(t *testing.T) {
+	t.Parallel()
+
+	block := strings.Join([]string{
+		codexcfg.StartMarker,
+		`[model_providers.custom]`,
+		`name = "custom"`,
+		`wire_api = "responses"`,
+		`requires_openai_auth = true`,
+		`base_url = "https://example.com/v1"`,
+		`supports_websockets = true`,
+		`custom_header = "X-My-Header"`,
+		codexcfg.EndMarker,
+	}, "\n")
+
+	extra := codexcfg.ParseExtraLines(block)
+
+	if len(extra) != 2 {
+		t.Fatalf("expected 2 extra lines, got %d: %v", len(extra), extra)
+	}
+	if extra[0] != `supports_websockets = true` {
+		t.Fatalf("expected supports_websockets line, got: %s", extra[0])
+	}
+	if extra[1] != `custom_header = "X-My-Header"` {
+		t.Fatalf("expected custom_header line, got: %s", extra[1])
+	}
+}
