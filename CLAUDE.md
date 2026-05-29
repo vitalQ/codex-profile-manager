@@ -27,7 +27,7 @@ Key internal packages under `internal/`:
 - `config` — reads/writes user `Settings` (includes `TargetAuthPath`, `ActiveProfileID`).
 - `profile` — CRUD, import (bytes/raw/file), reorder; persists to profiles index JSON. `Mode` distinguishes official vs API Key profiles.
 - `switcher` — the core write flow: atomic replace of target `auth.json`, updates active profile id, writes audit entry, and on cross-provider switches triggers rollout-session sync.
-- `codexsession` — scans `~/.codex/sessions/` and clones rollout JSONL when switching between `openai` (official) and `custom` (API key) providers, rewriting `session id`, `model_provider`, `cloned_from`, `original_provider`, `root_session_id`, `clone_timestamp`. Dedupes by `root_session_id` to avoid repeated cloning on back-and-forth switches.
+- `codexsession` — scans `~/.codex/sessions/` and clones rollout JSONL when switching between `openai` (official) and `OpenAI` (API key) providers, rewriting `session id`, `model_provider`, `cloned_from`, `original_provider`, `root_session_id`, `clone_timestamp`. Dedupes by `root_session_id` to avoid repeated cloning on back-and-forth switches.
 - `codexcfg` — maintains a managed block in `.codex/config.toml` used by API Key mode.
 - `detector` — identifies which profile (if any) is currently active in the target `auth.json`, reports "managed" status, runs diagnostics.
 - `audit` — append-only JSONL log (capped reads, last 100).

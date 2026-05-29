@@ -70,7 +70,7 @@ func (s *Service) SwitchProfile(profileID string) (SwitchResult, error) {
 		SourceProvider: sourceProvider,
 		TargetProvider: codexsession.ProviderForMode(record.Mode),
 	}
-	if settings.EnableSessionHistorySync && sessionSync.SourceProvider != "" && sessionSync.SourceProvider != sessionSync.TargetProvider {
+	if settings.EnableSessionHistorySync && sessionSync.SourceProvider != "" {
 		sessionSync, err = codexsession.SyncToProvider(settings.TargetAuthPath, sessionSync.TargetProvider)
 		if err != nil {
 			return SwitchResult{}, s.failAudit("switch_profile", record, settings.TargetAuthPath, err)
@@ -192,7 +192,7 @@ func syncConfigForProfile(configPath string, record profile.Record) error {
 			return fmt.Errorf("读取 config.toml 失败: %w", err)
 		}
 		if conflict {
-			return fmt.Errorf("检测到非 Codex Profile Manager 管理的 custom provider 配置，请先手动处理 config.toml")
+			return fmt.Errorf("检测到非 Codex Profile Manager 管理的 OpenAI provider 配置，请先手动处理 config.toml")
 		}
 		if err := codexcfg.RemoveManagedCustomProvider(configPath); err != nil {
 			return fmt.Errorf("清理 config.toml 失败: %w", err)
@@ -210,7 +210,7 @@ func verifyConfig(configPath string, record profile.Record) error {
 	switch record.Mode {
 	case profile.ModeAPIKey:
 		if !state.Present {
-			return fmt.Errorf("切换后校验失败，config.toml 中缺少 custom provider 配置")
+			return fmt.Errorf("切换后校验失败，config.toml 中缺少 OpenAI provider 配置")
 		}
 		if state.BaseURL != record.BaseURL {
 			return fmt.Errorf("切换后校验失败，config.toml 的 Base URL 不匹配")
@@ -221,10 +221,10 @@ func verifyConfig(configPath string, record profile.Record) error {
 			return fmt.Errorf("读取 config.toml 失败: %w", err)
 		}
 		if state.Present {
-			return fmt.Errorf("切换后校验失败，config.toml 中仍存在 custom provider 配置")
+			return fmt.Errorf("切换后校验失败，config.toml 中仍存在 OpenAI provider 配置")
 		}
 		if conflict {
-			return fmt.Errorf("切换后校验失败，config.toml 中存在非受管 custom provider 配置")
+			return fmt.Errorf("切换后校验失败，config.toml 中存在非受管 OpenAI provider 配置")
 		}
 	}
 	return nil
@@ -241,6 +241,9 @@ func currentProvider(targetAuthPath string) (string, error) {
 		return "", fmt.Errorf("读取 config.toml 失败: %w", err)
 	}
 	if state.Present || hasUnmanagedCustom {
+		if state.Provider != "" {
+			return state.Provider, nil
+		}
 		return codexsession.ProviderCustom, nil
 	}
 	return codexsession.ProviderOpenAI, nil

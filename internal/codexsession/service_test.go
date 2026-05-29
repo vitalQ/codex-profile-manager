@@ -70,8 +70,8 @@ func TestSyncToProviderSkipsSameProviderSessions(t *testing.T) {
 	if result.Cloned != 0 {
 		t.Fatalf("result.Cloned = %d, want 0", result.Cloned)
 	}
-	if result.SkippedTarget != 1 {
-		t.Fatalf("result.SkippedTarget = %d, want 1", result.SkippedTarget)
+	if result.SkippedTarget != 0 {
+		t.Fatalf("result.SkippedTarget = %d, want 0", result.SkippedTarget)
 	}
 
 	files := listSessionFiles(t, filepath.Join(filepath.Dir(authPath), "sessions"))
@@ -104,6 +104,40 @@ func TestSyncToProviderDoesNotCloneBackAndForthDuplicates(t *testing.T) {
 	}
 	if secondResult.SkippedExists != 1 {
 		t.Fatalf("secondResult.SkippedExists = %d, want 1", secondResult.SkippedExists)
+	}
+}
+
+func TestSyncToProviderClonesOtherProvidersEvenWhenTargetProviderExists(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	authPath := filepath.Join(tempDir, ".codex", "auth.json")
+	otherProvider := "local"
+	writeSessionFile(t, filepath.Dir(authPath), "2026-04-12T21-58-50", "00000000-0000-0000-0000-000000000000", codexsession.ProviderCustom)
+	otherPath := writeSessionFile(t, filepath.Dir(authPath), "2026-04-12T21-59-50", "11111111-1111-1111-1111-111111111111", otherProvider)
+
+	result, err := codexsession.SyncToProvider(authPath, codexsession.ProviderCustom)
+	if err != nil {
+		t.Fatalf("SyncToProvider() error = %v", err)
+	}
+	if result.Cloned != 1 {
+		t.Fatalf("result.Cloned = %d, want 1", result.Cloned)
+	}
+	if result.SkippedTarget != 0 {
+		t.Fatalf("result.SkippedTarget = %d, want 0", result.SkippedTarget)
+	}
+
+	files := listSessionFiles(t, filepath.Join(filepath.Dir(authPath), "sessions"))
+	if len(files) != 3 {
+		t.Fatalf("expected 3 rollout files, got %d", len(files))
+	}
+
+	clonePayload := readNonOriginalClonePayload(t, files, otherPath)
+	if got := clonePayload["model_provider"]; got != codexsession.ProviderCustom {
+		t.Fatalf("clone model_provider = %v, want %s", got, codexsession.ProviderCustom)
+	}
+	if got := clonePayload["original_provider"]; got != otherProvider {
+		t.Fatalf("clone original_provider = %v, want %s", got, otherProvider)
 	}
 }
 
@@ -158,14 +192,14 @@ func TestSyncToProviderPreservesNonMetaLinesWhenCloning(t *testing.T) {
 	}
 }
 
-func TestSyncToProviderOnlyClonesMostRecentTenSessions(t *testing.T) {
+func TestSyncToProviderOnlyClonesMostRecentFiftySessions(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
 	authPath := filepath.Join(tempDir, ".codex", "auth.json")
 
-	ids := make([]string, 0, 12)
-	for index := 1; index <= 12; index++ {
+	ids := make([]string, 0, 52)
+	for index := 1; index <= 52; index++ {
 		sessionID := fmt.Sprintf("%012d", index)
 		writeSessionFile(
 			t,
@@ -181,16 +215,16 @@ func TestSyncToProviderOnlyClonesMostRecentTenSessions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SyncToProvider() error = %v", err)
 	}
-	if result.Scanned != 10 {
-		t.Fatalf("result.Scanned = %d, want 10", result.Scanned)
+	if result.Scanned != 50 {
+		t.Fatalf("result.Scanned = %d, want 50", result.Scanned)
 	}
-	if result.Cloned != 10 {
-		t.Fatalf("result.Cloned = %d, want 10", result.Cloned)
+	if result.Cloned != 50 {
+		t.Fatalf("result.Cloned = %d, want 50", result.Cloned)
 	}
 
 	files := listSessionFiles(t, filepath.Join(filepath.Dir(authPath), "sessions"))
-	if len(files) != 22 {
-		t.Fatalf("expected 22 rollout files, got %d", len(files))
+	if len(files) != 102 {
+		t.Fatalf("expected 102 rollout files, got %d", len(files))
 	}
 
 	clonedRoots := map[string]bool{}
@@ -205,7 +239,7 @@ func TestSyncToProviderOnlyClonesMostRecentTenSessions(t *testing.T) {
 		}
 	}
 
-	// 最早的两条历史会话不应进入最近 10 条同步窗口。
+	// 最早的两条历史会话不应进入最近 50 条同步窗口。
 	for _, skippedID := range ids[:2] {
 		if clonedRoots[skippedID] {
 			t.Fatalf("expected oldest session %s to be excluded from sync", skippedID)
@@ -277,4 +311,20 @@ func readSessionMetaPayload(t *testing.T, path string) map[string]any {
 	}
 	metaPayload, _ := first["payload"].(map[string]any)
 	return metaPayload
+}
+
+func readNonOriginalClonePayload(t *testing.T, paths []string, originalPath string) map[string]any {
+	t.Helper()
+
+	for _, path := range paths {
+		if path == originalPath {
+			continue
+		}
+		payload := readSessionMetaPayload(t, path)
+		if payload["cloned_from"] != nil {
+			return payload
+		}
+	}
+	t.Fatalf("clone payload not found")
+	return nil
 }

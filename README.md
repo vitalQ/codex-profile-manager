@@ -14,7 +14,7 @@ Codex Profile Manager 是一个基于 **Go 1.25.5 + Wails v2.11.0** 的桌面应
 - 一键切换目标 `auth.json`，使用原子替换写入
 - API Key 模式切换时会同步维护 `.codex/config.toml`
 - 跨 provider 切换时自动同步 Codex 历史会话：
-  - 官方账号 `openai` ↔ API Key `custom`
+  - 官方账号 `openai` ↔ API Key `OpenAI`
   - 通过复制 `~/.codex/sessions/.../rollout-*.jsonl` 并重写目标 `model_provider`
   - 自动避免重复克隆同一条根会话
 - 当前启用项识别与托管状态检测

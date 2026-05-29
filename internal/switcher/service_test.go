@@ -212,7 +212,7 @@ func TestSwitchProfileOfficialRemovesManagedConfig(t *testing.T) {
 		t.Fatalf("ReadManagedCustomProvider() error = %v", err)
 	}
 	if state.Present {
-		t.Fatalf("expected managed custom provider config to be removed")
+		t.Fatalf("expected managed OpenAI provider config to be removed")
 	}
 }
 
@@ -355,7 +355,7 @@ func TestSwitchProfileClonesSessionsAcrossProviderTypes(t *testing.T) {
 	}
 }
 
-func TestSwitchProfileSameProviderDoesNotCloneSessions(t *testing.T) {
+func TestSwitchProfileSameProviderRunsSyncWithoutCloningTargetSessions(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -384,8 +384,9 @@ func TestSwitchProfileSameProviderDoesNotCloneSessions(t *testing.T) {
 		t.Fatalf("NewService() error = %v", err)
 	}
 	if _, err := configService.Save(config.Settings{
-		TargetAuthPath: targetAuthPath,
-		Theme:          "system",
+		TargetAuthPath:           targetAuthPath,
+		EnableSessionHistorySync: true,
+		Theme:                    "system",
 	}); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
@@ -404,8 +405,11 @@ func TestSwitchProfileSameProviderDoesNotCloneSessions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SwitchProfile() error = %v", err)
 	}
-	if result.SessionSync.Ran {
-		t.Fatalf("expected session sync to be skipped")
+	if !result.SessionSync.Ran {
+		t.Fatalf("expected session sync to run")
+	}
+	if result.SessionSync.Cloned != 0 {
+		t.Fatalf("result.SessionSync.Cloned = %d, want 0", result.SessionSync.Cloned)
 	}
 	if len(findRolloutFiles(t, filepath.Join(filepath.Dir(targetAuthPath), "sessions"))) != 1 {
 		t.Fatalf("expected session files to remain unchanged")

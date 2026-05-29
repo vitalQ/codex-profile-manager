@@ -670,7 +670,7 @@ function App() {
 
               {editor.providerMode === "api_key" && (
                 <div className="info-banner">
-                  切换该供应商时，会同时写入 <code>auth.json</code> 与同目录下的 <code>config.toml</code> 自定义 provider 配置。
+                  切换该供应商时，会同时写入 <code>auth.json</code> 与同目录下的 <code>config.toml</code> OpenAI provider 配置。
                 </div>
               )}
 
@@ -730,7 +730,7 @@ function App() {
                   <div className="editor-footer-title">编辑完成后直接保存即可生效</div>
                   <div className="editor-footer-note">
                     {editor.providerMode === "api_key"
-                      ? "API Key 模式会自动生成 auth.json，并同步维护 config.toml 中的 custom provider 配置。"
+                      ? "API Key 模式会自动生成 auth.json，并同步维护 config.toml 中的 OpenAI provider 配置。"
                       : "建议先格式化 JSON，方便检查结构和字段。"}
                   </div>
                 </div>

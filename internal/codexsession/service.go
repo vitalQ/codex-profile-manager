@@ -20,9 +20,9 @@ import (
 
 const (
 	ProviderOpenAI = "openai"
-	ProviderCustom = "custom"
-	// 为了控制同步成本，只处理最近 10 条有效会话。
-	maxRecentSyncs = 10
+	ProviderCustom = "OpenAI"
+	// 为了控制同步成本，每个非目标 provider 只处理最近 50 条有效会话。
+	maxRecentSyncs = 50
 )
 
 var rolloutFilePattern = regexp.MustCompile(`^rollout-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})-[0-9a-fA-F-]+\.jsonl$`)
@@ -82,7 +82,7 @@ func SyncToProvider(targetAuthPath, targetProvider string) (SyncResult, error) {
 	// 先统一解析元信息，后面的去重和“最近会话”筛选都复用这份结果。
 	descriptors := describeSessionFiles(sessionFiles)
 	existingKeys := buildCloneIndex(descriptors, result.TargetProvider)
-	for _, sessionFile := range selectRecentSyncFiles(descriptors, maxRecentSyncs) {
+	for _, sessionFile := range selectRecentSyncFiles(descriptors, result.TargetProvider, maxRecentSyncs) {
 		result.Scanned++
 
 		cloneResult, err := cloneSessionFile(sessionFile, sessionsDir, result.TargetProvider, existingKeys)
@@ -161,23 +161,36 @@ func buildCloneIndex(descriptors []sessionDescriptor, targetProvider string) map
 	return index
 }
 
-func selectRecentSyncFiles(descriptors []sessionDescriptor, limit int) []string {
+func selectRecentSyncFiles(descriptors []sessionDescriptor, targetProvider string, limit int) []string {
 	if limit <= 0 {
 		return nil
 	}
 
-	// 描述列表已按文件名排序；从尾部回扫即可拿到时间上最近的有效会话。
-	selected := make([]string, 0, min(limit, len(descriptors)))
-	for index := len(descriptors) - 1; index >= 0 && len(selected) < limit; index-- {
+	// 对每个非目标 provider 各取最近 N 条。这样目标 provider 或某个 provider 的大量历史
+	// 不会把其它 provider 里需要补齐的会话挤出同步窗口。
+	selectedByProvider := map[string][]string{}
+	providerOrder := []string{}
+	for index := len(descriptors) - 1; index >= 0; index-- {
 		descriptor := descriptors[index]
-		if !descriptor.valid || descriptor.provider == "" {
+		if !descriptor.valid || descriptor.provider == "" || descriptor.provider == targetProvider {
 			continue
 		}
-		selected = append(selected, descriptor.path)
+		if len(selectedByProvider[descriptor.provider]) >= limit {
+			continue
+		}
+		if _, ok := selectedByProvider[descriptor.provider]; !ok {
+			providerOrder = append(providerOrder, descriptor.provider)
+		}
+		selectedByProvider[descriptor.provider] = append(selectedByProvider[descriptor.provider], descriptor.path)
 	}
 
-	for left, right := 0, len(selected)-1; left < right; left, right = left+1, right-1 {
-		selected[left], selected[right] = selected[right], selected[left]
+	selected := []string{}
+	for _, provider := range providerOrder {
+		paths := selectedByProvider[provider]
+		for left, right := 0, len(paths)-1; left < right; left, right = left+1, right-1 {
+			paths[left], paths[right] = paths[right], paths[left]
+		}
+		selected = append(selected, paths...)
 	}
 	return selected
 }

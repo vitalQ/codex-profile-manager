@@ -25,11 +25,17 @@ func TestEnsureManagedCustomProviderAppendsAndReadsBlock(t *testing.T) {
 	if !strings.Contains(content, codexcfg.StartMarker) {
 		t.Fatalf("expected managed start marker")
 	}
-	if !strings.HasPrefix(content, "model_provider = \"custom\"\n") {
+	if !strings.HasPrefix(content, "model_provider = \"OpenAI\"\n") {
 		t.Fatalf("expected model_provider to be inserted at first line: %s", content)
+	}
+	if !strings.Contains(content, `[model_providers.OpenAI]`) {
+		t.Fatalf("expected OpenAI provider section in managed block: %s", content)
 	}
 	if !strings.Contains(content, `base_url = "https://example.com/v1"`) {
 		t.Fatalf("expected base_url in managed block: %s", content)
+	}
+	if count := strings.Count(content, `supports_websockets = true`); count != 1 {
+		t.Fatalf("expected one supports_websockets line, got %d: %s", count, content)
 	}
 
 	state, err := codexcfg.ReadManagedCustomProvider(path)
@@ -39,6 +45,9 @@ func TestEnsureManagedCustomProviderAppendsAndReadsBlock(t *testing.T) {
 	if !state.Present || state.BaseURL != "https://example.com/v1" {
 		t.Fatalf("unexpected managed state: %#v", state)
 	}
+	if state.Provider != "OpenAI" {
+		t.Fatalf("state.Provider = %q, want OpenAI", state.Provider)
+	}
 }
 
 func TestEnsureManagedCustomProviderReplacesExistingBlock(t *testing.T) {
@@ -46,15 +55,16 @@ func TestEnsureManagedCustomProviderReplacesExistingBlock(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), "config.toml")
 	if err := os.WriteFile(path, []byte(strings.Join([]string{
-		`model_provider = "custom"`,
+		`model_provider = "OpenAI"`,
 		"",
 		`foo = "bar"`,
 		"",
 		codexcfg.StartMarker,
-		`[model_providers.custom]`,
-		`name = "custom"`,
+		`[model_providers.OpenAI]`,
+		`name = "OpenAI"`,
 		`wire_api = "responses"`,
 		`requires_openai_auth = true`,
+		`supports_websockets = true`,
 		`base_url = "https://old.example/v1"`,
 		codexcfg.EndMarker,
 		"",
@@ -74,11 +84,17 @@ func TestEnsureManagedCustomProviderReplacesExistingBlock(t *testing.T) {
 	if strings.Contains(content, "old.example") {
 		t.Fatalf("expected old base_url to be replaced: %s", content)
 	}
-	if !strings.HasPrefix(content, "model_provider = \"custom\"\n") {
+	if !strings.HasPrefix(content, "model_provider = \"OpenAI\"\n") {
 		t.Fatalf("expected model_provider at first line: %s", content)
+	}
+	if !strings.Contains(content, `[model_providers.OpenAI]`) {
+		t.Fatalf("expected OpenAI provider section: %s", content)
 	}
 	if !strings.Contains(content, `base_url = "https://new.example/v1"`) {
 		t.Fatalf("expected updated base_url: %s", content)
+	}
+	if count := strings.Count(content, `supports_websockets = true`); count != 1 {
+		t.Fatalf("expected one supports_websockets line, got %d: %s", count, content)
 	}
 	if !strings.Contains(content, `foo = "bar"`) {
 		t.Fatalf("expected other config content to be preserved")
@@ -90,15 +106,16 @@ func TestRemoveManagedCustomProviderKeepsOtherConfig(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), "config.toml")
 	content := strings.Join([]string{
-		`model_provider = "custom"`,
+		`model_provider = "OpenAI"`,
 		"",
 		`foo = "bar"`,
 		"",
 		codexcfg.StartMarker,
-		`[model_providers.custom]`,
-		`name = "custom"`,
+		`[model_providers.OpenAI]`,
+		`name = "OpenAI"`,
 		`wire_api = "responses"`,
 		`requires_openai_auth = true`,
+		`supports_websockets = true`,
 		`base_url = "https://example.com/v1"`,
 		codexcfg.EndMarker,
 		"",
@@ -121,7 +138,7 @@ func TestRemoveManagedCustomProviderKeepsOtherConfig(t *testing.T) {
 	if strings.Contains(updated, codexcfg.StartMarker) || strings.Contains(updated, codexcfg.EndMarker) {
 		t.Fatalf("expected managed block to be removed: %s", updated)
 	}
-	if strings.Contains(updated, `model_provider = "custom"`) {
+	if strings.Contains(updated, `model_provider = "OpenAI"`) {
 		t.Fatalf("expected managed model_provider line to be removed: %s", updated)
 	}
 	if !strings.Contains(updated, `foo = "bar"`) || !strings.Contains(updated, `bar = "baz"`) {
@@ -134,9 +151,9 @@ func TestEnsureManagedCustomProviderRejectsUnmanagedConflict(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), "config.toml")
 	if err := os.WriteFile(path, []byte(strings.Join([]string{
-		`model_provider = "custom"`,
+		`model_provider = "OpenAI"`,
 		"",
-		`[model_providers.custom]`,
+		`[model_providers.OpenAI]`,
 		`base_url = "https://manual.example/v1"`,
 		"",
 	}, "\n")), 0o600); err != nil {
@@ -149,17 +166,42 @@ func TestEnsureManagedCustomProviderRejectsUnmanagedConflict(t *testing.T) {
 	}
 }
 
-func TestEnsureManagedCustomProviderPreservesExtraKeys(t *testing.T) {
+func TestEnsureManagedCustomProviderRejectsLegacyManagedProvider(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "config.toml")
-	// Existing config with user-added extra keys inside managed block.
 	if err := os.WriteFile(path, []byte(strings.Join([]string{
 		`model_provider = "custom"`,
 		"",
 		codexcfg.StartMarker,
 		`[model_providers.custom]`,
 		`name = "custom"`,
+		`wire_api = "responses"`,
+		`requires_openai_auth = true`,
+		`base_url = "https://legacy.example/v1"`,
+		codexcfg.EndMarker,
+		"",
+	}, "\n")), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	err := codexcfg.EnsureManagedCustomProvider(path, "https://example.com/v1")
+	if err == nil {
+		t.Fatalf("expected legacy managed provider error")
+	}
+}
+
+func TestEnsureManagedCustomProviderPreservesExtraKeys(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "config.toml")
+	// Existing config with user-added extra keys inside managed block.
+	if err := os.WriteFile(path, []byte(strings.Join([]string{
+		`model_provider = "OpenAI"`,
+		"",
+		codexcfg.StartMarker,
+		`[model_providers.OpenAI]`,
+		`name = "OpenAI"`,
 		`wire_api = "responses"`,
 		`requires_openai_auth = true`,
 		`base_url = "https://old.example/v1"`,
@@ -184,14 +226,17 @@ func TestEnsureManagedCustomProviderPreservesExtraKeys(t *testing.T) {
 	if !strings.Contains(content, `base_url = "https://new.example/v1"`) {
 		t.Fatalf("expected updated base_url: %s", content)
 	}
-	if !strings.Contains(content, `supports_websockets = true`) {
-		t.Fatalf("expected supports_websockets to be preserved: %s", content)
+	if count := strings.Count(content, `supports_websockets = true`); count != 1 {
+		t.Fatalf("expected one supports_websockets line, got %d: %s", count, content)
 	}
 	if !strings.Contains(content, `supports_streaming = true`) {
 		t.Fatalf("expected supports_streaming to be preserved: %s", content)
 	}
 	if strings.Contains(content, "old.example") {
 		t.Fatalf("expected old base_url to be replaced: %s", content)
+	}
+	if !strings.Contains(content, `model_provider = "OpenAI"`) || !strings.Contains(content, `[model_providers.OpenAI]`) {
+		t.Fatalf("expected OpenAI provider to remain managed: %s", content)
 	}
 }
 
@@ -200,25 +245,22 @@ func TestParseExtraLines(t *testing.T) {
 
 	block := strings.Join([]string{
 		codexcfg.StartMarker,
-		`[model_providers.custom]`,
-		`name = "custom"`,
+		`[model_providers.OpenAI]`,
+		`name = "OpenAI"`,
 		`wire_api = "responses"`,
 		`requires_openai_auth = true`,
-		`base_url = "https://example.com/v1"`,
 		`supports_websockets = true`,
+		`base_url = "https://example.com/v1"`,
 		`custom_header = "X-My-Header"`,
 		codexcfg.EndMarker,
 	}, "\n")
 
 	extra := codexcfg.ParseExtraLines(block)
 
-	if len(extra) != 2 {
-		t.Fatalf("expected 2 extra lines, got %d: %v", len(extra), extra)
+	if len(extra) != 1 {
+		t.Fatalf("expected 1 extra line, got %d: %v", len(extra), extra)
 	}
-	if extra[0] != `supports_websockets = true` {
-		t.Fatalf("expected supports_websockets line, got: %s", extra[0])
-	}
-	if extra[1] != `custom_header = "X-My-Header"` {
-		t.Fatalf("expected custom_header line, got: %s", extra[1])
+	if extra[0] != `custom_header = "X-My-Header"` {
+		t.Fatalf("expected custom_header line, got: %s", extra[0])
 	}
 }

@@ -16,14 +16,16 @@ const (
 )
 
 var (
-	reModelProviderCustom = regexp.MustCompile(`(?m)^\s*model_provider\s*=\s*"custom"\s*$`)
-	reCustomSection       = regexp.MustCompile(`(?m)^\s*\[model_providers\.custom\]\s*$`)
+	reModelProviderAPIKey = regexp.MustCompile(`(?m)^\s*model_provider\s*=\s*"(OpenAI)"\s*$`)
+	reAPIKeySection       = regexp.MustCompile(`(?m)^\s*\[model_providers\.(OpenAI)\]\s*$`)
+	reAnyAPIKeyProvider   = regexp.MustCompile(`(?m)^\s*(?:model_provider\s*=\s*"([^"]+)"|\[model_providers\.([^\]]+)\])\s*$`)
 	reBaseURL             = regexp.MustCompile(`(?m)^\s*base_url\s*=\s*"([^"]*)"\s*$`)
 )
 
 type ManagedCustomProvider struct {
-	Present bool
-	BaseURL string
+	Present  bool
+	BaseURL  string
+	Provider string
 }
 
 func HasUnmanagedCustomProvider(path string) (bool, error) {
@@ -63,10 +65,20 @@ func ReadManagedCustomProvider(path string) (ManagedCustomProvider, error) {
 	if matches := reBaseURL.FindStringSubmatch(block); len(matches) > 1 {
 		baseURL = strings.TrimSpace(matches[1])
 	}
+	provider := ""
+	if matches := reModelProviderAPIKey.FindStringSubmatch(content); len(matches) > 1 {
+		provider = strings.TrimSpace(matches[1])
+	}
+	if provider == "" {
+		if matches := reAPIKeySection.FindStringSubmatch(block); len(matches) > 1 {
+			provider = strings.TrimSpace(matches[1])
+		}
+	}
 
 	return ManagedCustomProvider{
-		Present: true,
-		BaseURL: baseURL,
+		Present:  true,
+		BaseURL:  baseURL,
+		Provider: provider,
 	}, nil
 }
 
@@ -85,8 +97,11 @@ func EnsureManagedCustomProvider(path, baseURL string) error {
 	if err != nil {
 		return err
 	}
+	if ok && !managedBlockUsesOpenAI(content[start:end]) {
+		return fmt.Errorf("检测到非 OpenAI 的 Codex Profile Manager 受管 provider 配置，请先手动处理 config.toml")
+	}
 	if hasUnmanagedCustomProvider(content) {
-		return fmt.Errorf("检测到非 Codex Profile Manager 管理的 custom provider 配置，请先手动处理 config.toml")
+		return fmt.Errorf("检测到非 Codex Profile Manager 管理的 OpenAI provider 配置，请先手动处理 config.toml")
 	}
 
 	// Extract user-added extra lines from existing managed block before replacing.
@@ -163,10 +178,11 @@ func readConfig(path string) (string, error) {
 func renderManagedBlock(baseURL string, extraLines []string) string {
 	lines := []string{
 		StartMarker,
-		`[model_providers.custom]`,
-		`name = "custom"`,
+		`[model_providers.OpenAI]`,
+		`name = "OpenAI"`,
 		`wire_api = "responses"`,
 		`requires_openai_auth = true`,
+		`supports_websockets = true`,
 		fmt.Sprintf(`base_url = %q`, baseURL),
 	}
 	lines = append(lines, extraLines...)
@@ -177,10 +193,11 @@ func renderManagedBlock(baseURL string, extraLines []string) string {
 // managedKeys are the keys that renderManagedBlock always generates.
 // parseExtraLines excludes these so they don't get duplicated.
 var managedKeys = map[string]bool{
-	"name":                  true,
-	"wire_api":              true,
-	"requires_openai_auth":  true,
-	"base_url":              true,
+	"name":                 true,
+	"wire_api":             true,
+	"requires_openai_auth": true,
+	"supports_websockets":  true,
+	"base_url":             true,
 }
 
 // ParseExtraLines extracts user-added lines from an existing managed block,
@@ -196,7 +213,7 @@ func ParseExtraLines(block string) []string {
 		if trimmed == StartMarker || trimmed == EndMarker {
 			continue
 		}
-		if trimmed == "[model_providers.custom]" {
+		if trimmed == "[model_providers.OpenAI]" {
 			continue
 		}
 		// Check if this line is a known managed key (key = value format).
@@ -239,12 +256,25 @@ func hasUnmanagedCustomProvider(content string) bool {
 		outside = content[:start] + content[end:]
 		outside = stripManagedModelProviderLine(outside)
 	}
-	return reModelProviderCustom.MatchString(outside) || reCustomSection.MatchString(outside)
+	return reModelProviderAPIKey.MatchString(outside) || reAPIKeySection.MatchString(outside)
+}
+
+func managedBlockUsesOpenAI(block string) bool {
+	for _, match := range reAnyAPIKeyProvider.FindAllStringSubmatch(block, -1) {
+		provider := strings.TrimSpace(match[1])
+		if provider == "" {
+			provider = strings.TrimSpace(match[2])
+		}
+		if provider != "" && provider != "OpenAI" {
+			return false
+		}
+	}
+	return true
 }
 
 func prependManagedModelProviderLine(content string) string {
 	content = strings.TrimLeft(content, "\n")
-	line := `model_provider = "custom"`
+	line := `model_provider = "OpenAI"`
 	if content == "" {
 		return line + "\n"
 	}
@@ -252,10 +282,11 @@ func prependManagedModelProviderLine(content string) string {
 }
 
 func stripManagedModelProviderLine(content string) string {
-	if strings.HasPrefix(content, "model_provider = \"custom\"\n") {
-		return strings.TrimLeft(strings.TrimPrefix(content, "model_provider = \"custom\"\n"), "\n")
+	line := `model_provider = "OpenAI"`
+	if strings.HasPrefix(content, line+"\n") {
+		return strings.TrimLeft(strings.TrimPrefix(content, line+"\n"), "\n")
 	}
-	if content == `model_provider = "custom"` {
+	if content == line {
 		return ""
 	}
 	return content

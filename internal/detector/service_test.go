@@ -57,7 +57,7 @@ func TestCurrentDoesNotMatchOfficialProfileWhenUnmanagedCustomConfigExists(t *te
 	if err := os.WriteFile(targetAuthPath, []byte(`{"token":"official"}`), 0o600); err != nil {
 		t.Fatalf("WriteFile(auth.json) error = %v", err)
 	}
-	if err := os.WriteFile(configPath, []byte("model_provider = \"custom\"\n\n[model_providers.custom]\nbase_url = \"https://manual.example/v1\"\n"), 0o600); err != nil {
+	if err := os.WriteFile(configPath, []byte("model_provider = \"OpenAI\"\n\n[model_providers.OpenAI]\nbase_url = \"https://manual.example/v1\"\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile(config.toml) error = %v", err)
 	}
 
