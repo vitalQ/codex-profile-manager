@@ -16,10 +16,10 @@ const (
 )
 
 var (
-	reModelProviderAPIKey = regexp.MustCompile(`(?m)^\s*model_provider\s*=\s*"(OpenAI)"\s*$`)
-	reAPIKeySection       = regexp.MustCompile(`(?m)^\s*\[model_providers\.(OpenAI)\]\s*$`)
-	reAnyAPIKeyProvider   = regexp.MustCompile(`(?m)^\s*(?:model_provider\s*=\s*"([^"]+)"|\[model_providers\.([^\]]+)\])\s*$`)
-	reBaseURL             = regexp.MustCompile(`(?m)^\s*base_url\s*=\s*"([^"]*)"\s*$`)
+	reAPIKeySection      = regexp.MustCompile(`(?m)^\s*\[model_providers\.(OpenAI)\]\s*$`)
+	reAnyProviderSection = regexp.MustCompile(`(?m)^\s*\[model_providers\.([^\]]+)\]\s*$`)
+	reBaseURL            = regexp.MustCompile(`(?m)^\s*base_url\s*=\s*"([^"]*)"\s*$`)
+	reModelProviderLine  = regexp.MustCompile(`^(\s*model_provider\s*=\s*)"([^"]*)"(.*)$`)
 )
 
 type ManagedCustomProvider struct {
@@ -66,13 +66,8 @@ func ReadManagedCustomProvider(path string) (ManagedCustomProvider, error) {
 		baseURL = strings.TrimSpace(matches[1])
 	}
 	provider := ""
-	if matches := reModelProviderAPIKey.FindStringSubmatch(content); len(matches) > 1 {
+	if matches := reAPIKeySection.FindStringSubmatch(block); len(matches) > 1 {
 		provider = strings.TrimSpace(matches[1])
-	}
-	if provider == "" {
-		if matches := reAPIKeySection.FindStringSubmatch(block); len(matches) > 1 {
-			provider = strings.TrimSpace(matches[1])
-		}
 	}
 
 	return ManagedCustomProvider{
@@ -110,20 +105,14 @@ func EnsureManagedCustomProvider(path, baseURL string) error {
 		extraLines = ParseExtraLines(content[start:end])
 	}
 
-	content = stripManagedModelProviderLine(content)
-	start, end, ok, err = managedBlockBounds(content)
-	if err != nil {
-		return err
-	}
-
 	block := renderManagedBlock(baseURL, extraLines)
 	if ok {
 		content = content[:start] + block + content[end:]
 	} else {
 		content = appendManagedBlock(content, block)
 	}
+	content = normalizeExistingModelProvider(content, "OpenAI")
 
-	content = prependManagedModelProviderLine(content)
 	return util.WriteFileAtomic(path, []byte(strings.TrimRight(content, "\n")+"\n"))
 }
 
@@ -144,20 +133,8 @@ func RemoveManagedCustomProvider(path string) error {
 		return nil
 	}
 
-	content = stripManagedModelProviderLine(content)
-	start, end, ok, err = managedBlockBounds(content)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		updated := collapseBlankLines(content)
-		if strings.TrimSpace(updated) == "" {
-			return util.WriteFileAtomic(path, []byte{})
-		}
-		return util.WriteFileAtomic(path, []byte(strings.TrimRight(updated, "\n")+"\n"))
-	}
-
 	updated := collapseBlankLines(content[:start] + content[end:])
+	updated = normalizeExistingModelProvider(updated, "openai")
 	if strings.TrimSpace(updated) == "" {
 		return util.WriteFileAtomic(path, []byte{})
 	}
@@ -254,17 +231,13 @@ func hasUnmanagedCustomProvider(content string) bool {
 	outside := content
 	if ok {
 		outside = content[:start] + content[end:]
-		outside = stripManagedModelProviderLine(outside)
 	}
-	return reModelProviderAPIKey.MatchString(outside) || reAPIKeySection.MatchString(outside)
+	return reAPIKeySection.MatchString(outside)
 }
 
 func managedBlockUsesOpenAI(block string) bool {
-	for _, match := range reAnyAPIKeyProvider.FindAllStringSubmatch(block, -1) {
+	for _, match := range reAnyProviderSection.FindAllStringSubmatch(block, -1) {
 		provider := strings.TrimSpace(match[1])
-		if provider == "" {
-			provider = strings.TrimSpace(match[2])
-		}
 		if provider != "" && provider != "OpenAI" {
 			return false
 		}
@@ -272,24 +245,22 @@ func managedBlockUsesOpenAI(block string) bool {
 	return true
 }
 
-func prependManagedModelProviderLine(content string) string {
-	content = strings.TrimLeft(content, "\n")
-	line := `model_provider = "OpenAI"`
-	if content == "" {
-		return line + "\n"
+func normalizeExistingModelProvider(content, provider string) string {
+	lines := strings.Split(content, "\n")
+	for index, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "[") {
+			break
+		}
+		matches := reModelProviderLine.FindStringSubmatch(line)
+		if len(matches) == 0 {
+			continue
+		}
+		if matches[2] != provider {
+			lines[index] = matches[1] + fmt.Sprintf("%q", provider) + matches[3]
+		}
+		break
 	}
-	return line + "\n" + content
-}
-
-func stripManagedModelProviderLine(content string) string {
-	line := `model_provider = "OpenAI"`
-	if strings.HasPrefix(content, line+"\n") {
-		return strings.TrimLeft(strings.TrimPrefix(content, line+"\n"), "\n")
-	}
-	if content == line {
-		return ""
-	}
-	return content
+	return strings.Join(lines, "\n")
 }
 
 func appendManagedBlock(content, block string) string {
