@@ -19,13 +19,15 @@ var (
 	reAPIKeySection      = regexp.MustCompile(`(?m)^\s*\[model_providers\.(OpenAI)\]\s*$`)
 	reAnyProviderSection = regexp.MustCompile(`(?m)^\s*\[model_providers\.([^\]]+)\]\s*$`)
 	reBaseURL            = regexp.MustCompile(`(?m)^\s*base_url\s*=\s*"([^"]*)"\s*$`)
+	reSupportsWebSockets = regexp.MustCompile(`(?m)^\s*supports_websockets\s*=\s*true\s*$`)
 	reModelProviderLine  = regexp.MustCompile(`^(\s*model_provider\s*=\s*)"([^"]*)"(.*)$`)
 )
 
 type ManagedCustomProvider struct {
-	Present  bool
-	BaseURL  string
-	Provider string
+	Present            bool
+	BaseURL            string
+	SupportsWebSockets bool
+	Provider           string
 }
 
 func HasUnmanagedCustomProvider(path string) (bool, error) {
@@ -65,19 +67,21 @@ func ReadManagedCustomProvider(path string) (ManagedCustomProvider, error) {
 	if matches := reBaseURL.FindStringSubmatch(block); len(matches) > 1 {
 		baseURL = strings.TrimSpace(matches[1])
 	}
+	supportsWebSockets := reSupportsWebSockets.MatchString(block)
 	provider := ""
 	if matches := reAPIKeySection.FindStringSubmatch(block); len(matches) > 1 {
 		provider = strings.TrimSpace(matches[1])
 	}
 
 	return ManagedCustomProvider{
-		Present:  true,
-		BaseURL:  baseURL,
-		Provider: provider,
+		Present:            true,
+		BaseURL:            baseURL,
+		SupportsWebSockets: supportsWebSockets,
+		Provider:           provider,
 	}, nil
 }
 
-func EnsureManagedCustomProvider(path, baseURL string) error {
+func EnsureManagedCustomProvider(path, baseURL string, supportsWebSockets bool) error {
 	baseURL = strings.TrimSpace(baseURL)
 	if baseURL == "" {
 		return fmt.Errorf("Base URL 不能为空")
@@ -105,7 +109,7 @@ func EnsureManagedCustomProvider(path, baseURL string) error {
 		extraLines = ParseExtraLines(content[start:end])
 	}
 
-	block := renderManagedBlock(baseURL, extraLines)
+	block := renderManagedBlock(baseURL, supportsWebSockets, extraLines)
 	if ok {
 		content = content[:start] + block + content[end:]
 	} else {
@@ -152,16 +156,18 @@ func readConfig(path string) (string, error) {
 	return strings.ReplaceAll(string(payload), "\r\n", "\n"), nil
 }
 
-func renderManagedBlock(baseURL string, extraLines []string) string {
+func renderManagedBlock(baseURL string, supportsWebSockets bool, extraLines []string) string {
 	lines := []string{
 		StartMarker,
 		`[model_providers.OpenAI]`,
 		`name = "OpenAI"`,
 		`wire_api = "responses"`,
 		`requires_openai_auth = true`,
-		`supports_websockets = true`,
-		fmt.Sprintf(`base_url = %q`, baseURL),
 	}
+	if supportsWebSockets {
+		lines = append(lines, `supports_websockets = true`)
+	}
+	lines = append(lines, fmt.Sprintf(`base_url = %q`, baseURL))
 	lines = append(lines, extraLines...)
 	lines = append(lines, EndMarker, "")
 	return strings.Join(lines, "\n")

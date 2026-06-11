@@ -18,20 +18,21 @@ type StorageInfo struct {
 }
 
 type Record struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Mode        string      `json:"mode"`
-	Homepage    string      `json:"homepage"`
-	BaseURL     string      `json:"baseUrl,omitempty"`
-	Tags        []string    `json:"tags"`
-	Note        string      `json:"note"`
-	RawJSON     string      `json:"rawJson"`
-	Fingerprint string      `json:"fingerprint"`
-	SortIndex   int         `json:"sortIndex"`
-	CreatedAt   time.Time   `json:"createdAt"`
-	UpdatedAt   time.Time   `json:"updatedAt"`
-	LastUsedAt  *time.Time  `json:"lastUsedAt,omitempty"`
-	Storage     StorageInfo `json:"storage"`
+	ID                 string      `json:"id"`
+	Name               string      `json:"name"`
+	Mode               string      `json:"mode"`
+	Homepage           string      `json:"homepage"`
+	BaseURL            string      `json:"baseUrl,omitempty"`
+	SupportsWebSockets *bool       `json:"supportsWebsockets,omitempty"`
+	Tags               []string    `json:"tags"`
+	Note               string      `json:"note"`
+	RawJSON            string      `json:"rawJson"`
+	Fingerprint        string      `json:"fingerprint"`
+	SortIndex          int         `json:"sortIndex"`
+	CreatedAt          time.Time   `json:"createdAt"`
+	UpdatedAt          time.Time   `json:"updatedAt"`
+	LastUsedAt         *time.Time  `json:"lastUsedAt,omitempty"`
+	Storage            StorageInfo `json:"storage"`
 }
 
 type indexFile struct {
@@ -39,12 +40,13 @@ type indexFile struct {
 }
 
 type CreateInput struct {
-	Name     string   `json:"name"`
-	Mode     string   `json:"mode"`
-	Homepage string   `json:"homepage"`
-	BaseURL  string   `json:"baseUrl"`
-	Tags     []string `json:"tags"`
-	Note     string   `json:"note"`
+	Name               string   `json:"name"`
+	Mode               string   `json:"mode"`
+	Homepage           string   `json:"homepage"`
+	BaseURL            string   `json:"baseUrl"`
+	SupportsWebSockets *bool    `json:"supportsWebsockets,omitempty"`
+	Tags               []string `json:"tags"`
+	Note               string   `json:"note"`
 }
 
 const (
@@ -112,18 +114,19 @@ func (s *Service) CreateFromBytes(input CreateInput, payload []byte) (Record, er
 	id := util.NewID("profile")
 
 	record := Record{
-		ID:          id,
-		Name:        name,
-		Mode:        mode,
-		Homepage:    strings.TrimSpace(input.Homepage),
-		BaseURL:     normalizeBaseURL(mode, input.BaseURL),
-		Tags:        normalizeTags(input.Tags),
-		Note:        strings.TrimSpace(input.Note),
-		RawJSON:     string(normalized),
-		Fingerprint: fingerprint,
-		SortIndex:   len(index.Profiles),
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:                 id,
+		Name:               name,
+		Mode:               mode,
+		Homepage:           strings.TrimSpace(input.Homepage),
+		BaseURL:            normalizeBaseURL(mode, input.BaseURL),
+		SupportsWebSockets: normalizeSupportsWebSockets(mode, input.SupportsWebSockets),
+		Tags:               normalizeTags(input.Tags),
+		Note:               strings.TrimSpace(input.Note),
+		RawJSON:            string(normalized),
+		Fingerprint:        fingerprint,
+		SortIndex:          len(index.Profiles),
+		CreatedAt:          now,
+		UpdatedAt:          now,
 		Storage: StorageInfo{
 			Type: "inline",
 			Path: s.indexPath,
@@ -172,6 +175,7 @@ func (s *Service) Update(input Record) (Record, error) {
 			index.Profiles[i].Mode = mode
 			index.Profiles[i].Homepage = strings.TrimSpace(input.Homepage)
 			index.Profiles[i].BaseURL = normalizeBaseURL(mode, input.BaseURL)
+			index.Profiles[i].SupportsWebSockets = normalizeSupportsWebSockets(mode, input.SupportsWebSockets)
 			index.Profiles[i].Tags = normalizeTags(input.Tags)
 			index.Profiles[i].Note = strings.TrimSpace(input.Note)
 			index.Profiles[i].RawJSON = string(normalized)
@@ -428,6 +432,7 @@ func cloneRecords(input []Record) []Record {
 	for i, item := range input {
 		copy := item
 		copy.Mode = defaultMode(copy.Mode)
+		copy.SupportsWebSockets = normalizeSupportsWebSockets(copy.Mode, copy.SupportsWebSockets)
 		if item.Tags != nil {
 			copy.Tags = append([]string(nil), item.Tags...)
 		} else {
@@ -440,6 +445,16 @@ func cloneRecords(input []Record) []Record {
 		result[i] = copy
 	}
 	return result
+}
+
+func (r Record) SupportsWebSocketsEnabled() bool {
+	if defaultMode(r.Mode) != ModeAPIKey {
+		return false
+	}
+	if r.SupportsWebSockets == nil {
+		return true
+	}
+	return *r.SupportsWebSockets
 }
 
 func normalizeMode(mode string) (string, error) {
@@ -465,6 +480,21 @@ func normalizeBaseURL(mode, baseURL string) string {
 		return ""
 	}
 	return strings.TrimSpace(baseURL)
+}
+
+func normalizeSupportsWebSockets(mode string, input *bool) *bool {
+	if mode != ModeAPIKey {
+		return nil
+	}
+	enabled := true
+	if input != nil {
+		enabled = *input
+	}
+	return boolPtr(enabled)
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }
 
 func validateModePayload(mode string, payload []byte, baseURL string) error {

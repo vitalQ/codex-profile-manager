@@ -13,7 +13,7 @@ func TestEnsureManagedCustomProviderAppendsAndReadsBlock(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "config.toml")
-	if err := codexcfg.EnsureManagedCustomProvider(path, "https://example.com/v1"); err != nil {
+	if err := codexcfg.EnsureManagedCustomProvider(path, "https://example.com/v1", true); err != nil {
 		t.Fatalf("EnsureManagedCustomProvider() error = %v", err)
 	}
 
@@ -48,6 +48,35 @@ func TestEnsureManagedCustomProviderAppendsAndReadsBlock(t *testing.T) {
 	if state.Provider != "OpenAI" {
 		t.Fatalf("state.Provider = %q, want OpenAI", state.Provider)
 	}
+	if !state.SupportsWebSockets {
+		t.Fatalf("expected SupportsWebSockets to be true: %#v", state)
+	}
+}
+
+func TestEnsureManagedCustomProviderOmitsWebSocketsWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := codexcfg.EnsureManagedCustomProvider(path, "https://example.com/v1", false); err != nil {
+		t.Fatalf("EnsureManagedCustomProvider() error = %v", err)
+	}
+
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	content := string(payload)
+	if strings.Contains(content, `supports_websockets`) {
+		t.Fatalf("expected supports_websockets line to be omitted: %s", content)
+	}
+
+	state, err := codexcfg.ReadManagedCustomProvider(path)
+	if err != nil {
+		t.Fatalf("ReadManagedCustomProvider() error = %v", err)
+	}
+	if !state.Present || state.SupportsWebSockets {
+		t.Fatalf("unexpected managed state: %#v", state)
+	}
 }
 
 func TestEnsureManagedCustomProviderReplacesExistingBlock(t *testing.T) {
@@ -72,7 +101,7 @@ func TestEnsureManagedCustomProviderReplacesExistingBlock(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	if err := codexcfg.EnsureManagedCustomProvider(path, "https://new.example/v1"); err != nil {
+	if err := codexcfg.EnsureManagedCustomProvider(path, "https://new.example/v1", true); err != nil {
 		t.Fatalf("EnsureManagedCustomProvider() error = %v", err)
 	}
 
@@ -127,7 +156,7 @@ func TestEnsureManagedCustomProviderKeepsExistingOpenAIModelProviderLine(t *test
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	if err := codexcfg.EnsureManagedCustomProvider(path, "https://new.example/v1"); err != nil {
+	if err := codexcfg.EnsureManagedCustomProvider(path, "https://new.example/v1", true); err != nil {
 		t.Fatalf("EnsureManagedCustomProvider() error = %v", err)
 	}
 
@@ -164,7 +193,7 @@ func TestEnsureManagedCustomProviderUpdatesExistingModelProviderLine(t *testing.
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	if err := codexcfg.EnsureManagedCustomProvider(path, "https://example.com/v1"); err != nil {
+	if err := codexcfg.EnsureManagedCustomProvider(path, "https://example.com/v1", true); err != nil {
 		t.Fatalf("EnsureManagedCustomProvider() error = %v", err)
 	}
 
@@ -200,7 +229,7 @@ func TestEnsureManagedCustomProviderDoesNotUpdateNestedModelProviderLine(t *test
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	if err := codexcfg.EnsureManagedCustomProvider(path, "https://example.com/v1"); err != nil {
+	if err := codexcfg.EnsureManagedCustomProvider(path, "https://example.com/v1", true); err != nil {
 		t.Fatalf("EnsureManagedCustomProvider() error = %v", err)
 	}
 
@@ -320,7 +349,7 @@ func TestEnsureManagedCustomProviderRejectsUnmanagedConflict(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	err := codexcfg.EnsureManagedCustomProvider(path, "https://example.com/v1")
+	err := codexcfg.EnsureManagedCustomProvider(path, "https://example.com/v1", true)
 	if err == nil {
 		t.Fatalf("expected unmanaged conflict error")
 	}
@@ -345,7 +374,7 @@ func TestEnsureManagedCustomProviderRejectsLegacyManagedProvider(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	err := codexcfg.EnsureManagedCustomProvider(path, "https://example.com/v1")
+	err := codexcfg.EnsureManagedCustomProvider(path, "https://example.com/v1", true)
 	if err == nil {
 		t.Fatalf("expected legacy managed provider error")
 	}
@@ -374,7 +403,7 @@ func TestEnsureManagedCustomProviderPreservesExtraKeys(t *testing.T) {
 	}
 
 	// Switch to a new base URL — extra keys should be preserved.
-	if err := codexcfg.EnsureManagedCustomProvider(path, "https://new.example/v1"); err != nil {
+	if err := codexcfg.EnsureManagedCustomProvider(path, "https://new.example/v1", true); err != nil {
 		t.Fatalf("EnsureManagedCustomProvider() error = %v", err)
 	}
 

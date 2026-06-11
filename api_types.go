@@ -9,19 +9,20 @@ import (
 )
 
 type ProfileDTO struct {
-	ID          string              `json:"id"`
-	Name        string              `json:"name"`
-	Mode        string              `json:"mode"`
-	Homepage    string              `json:"homepage"`
-	BaseURL     string              `json:"baseUrl,omitempty"`
-	Tags        []string            `json:"tags"`
-	Note        string              `json:"note"`
-	RawJSON     string              `json:"rawJson,omitempty"`
-	Fingerprint string              `json:"fingerprint"`
-	CreatedAt   string              `json:"createdAt"`
-	UpdatedAt   string              `json:"updatedAt"`
-	LastUsedAt  string              `json:"lastUsedAt,omitempty"`
-	Storage     profile.StorageInfo `json:"storage,omitempty"`
+	ID                 string              `json:"id"`
+	Name               string              `json:"name"`
+	Mode               string              `json:"mode"`
+	Homepage           string              `json:"homepage"`
+	BaseURL            string              `json:"baseUrl,omitempty"`
+	SupportsWebSockets bool                `json:"supportsWebsockets"`
+	Tags               []string            `json:"tags"`
+	Note               string              `json:"note"`
+	RawJSON            string              `json:"rawJson,omitempty"`
+	Fingerprint        string              `json:"fingerprint"`
+	CreatedAt          string              `json:"createdAt"`
+	UpdatedAt          string              `json:"updatedAt"`
+	LastUsedAt         string              `json:"lastUsedAt,omitempty"`
+	Storage            profile.StorageInfo `json:"storage,omitempty"`
 }
 
 type CurrentStateDTO struct {
@@ -53,43 +54,47 @@ type BootstrapData struct {
 }
 
 type ImportProfileInput struct {
-	Name     string   `json:"name"`
-	Mode     string   `json:"mode"`
-	Homepage string   `json:"homepage"`
-	BaseURL  string   `json:"baseUrl"`
-	Tags     []string `json:"tags"`
-	Note     string   `json:"note"`
+	Name               string   `json:"name"`
+	Mode               string   `json:"mode"`
+	Homepage           string   `json:"homepage"`
+	BaseURL            string   `json:"baseUrl"`
+	SupportsWebSockets *bool    `json:"supportsWebsockets,omitempty"`
+	Tags               []string `json:"tags"`
+	Note               string   `json:"note"`
 }
 
 type ImportProfileFromFileInput struct {
-	Name     string   `json:"name"`
-	Mode     string   `json:"mode"`
-	Homepage string   `json:"homepage"`
-	BaseURL  string   `json:"baseUrl"`
-	Tags     []string `json:"tags"`
-	Note     string   `json:"note"`
-	FilePath string   `json:"filePath"`
+	Name               string   `json:"name"`
+	Mode               string   `json:"mode"`
+	Homepage           string   `json:"homepage"`
+	BaseURL            string   `json:"baseUrl"`
+	SupportsWebSockets *bool    `json:"supportsWebsockets,omitempty"`
+	Tags               []string `json:"tags"`
+	Note               string   `json:"note"`
+	FilePath           string   `json:"filePath"`
 }
 
 type ImportProfileFromRawInput struct {
-	Name     string   `json:"name"`
-	Mode     string   `json:"mode"`
-	Homepage string   `json:"homepage"`
-	BaseURL  string   `json:"baseUrl"`
-	Tags     []string `json:"tags"`
-	Note     string   `json:"note"`
-	RawJSON  string   `json:"rawJson"`
+	Name               string   `json:"name"`
+	Mode               string   `json:"mode"`
+	Homepage           string   `json:"homepage"`
+	BaseURL            string   `json:"baseUrl"`
+	SupportsWebSockets *bool    `json:"supportsWebsockets,omitempty"`
+	Tags               []string `json:"tags"`
+	Note               string   `json:"note"`
+	RawJSON            string   `json:"rawJson"`
 }
 
 type UpdateProfileInput struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"name"`
-	Mode     string   `json:"mode"`
-	Homepage string   `json:"homepage"`
-	BaseURL  string   `json:"baseUrl"`
-	Tags     []string `json:"tags"`
-	Note     string   `json:"note"`
-	RawJSON  string   `json:"rawJson"`
+	ID                 string   `json:"id"`
+	Name               string   `json:"name"`
+	Mode               string   `json:"mode"`
+	Homepage           string   `json:"homepage"`
+	BaseURL            string   `json:"baseUrl"`
+	SupportsWebSockets *bool    `json:"supportsWebsockets,omitempty"`
+	Tags               []string `json:"tags"`
+	Note               string   `json:"note"`
+	RawJSON            string   `json:"rawJson"`
 }
 
 type SwitchProfileResult struct {
@@ -111,16 +116,17 @@ type SessionSyncDTO struct {
 
 func mapProfileSummary(record profile.Record) ProfileDTO {
 	result := ProfileDTO{
-		ID:          record.ID,
-		Name:        record.Name,
-		Mode:        record.Mode,
-		Homepage:    record.Homepage,
-		BaseURL:     record.BaseURL,
-		Tags:        record.Tags,
-		Note:        record.Note,
-		Fingerprint: record.Fingerprint,
-		CreatedAt:   record.CreatedAt.Format(timeLayout),
-		UpdatedAt:   record.UpdatedAt.Format(timeLayout),
+		ID:                 record.ID,
+		Name:               record.Name,
+		Mode:               record.Mode,
+		Homepage:           record.Homepage,
+		BaseURL:            record.BaseURL,
+		SupportsWebSockets: record.SupportsWebSocketsEnabled(),
+		Tags:               record.Tags,
+		Note:               record.Note,
+		Fingerprint:        record.Fingerprint,
+		CreatedAt:          record.CreatedAt.Format(timeLayout),
+		UpdatedAt:          record.UpdatedAt.Format(timeLayout),
 	}
 	if record.LastUsedAt != nil {
 		result.LastUsedAt = record.LastUsedAt.Format(timeLayout)

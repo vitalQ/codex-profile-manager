@@ -120,6 +120,7 @@ export namespace main {
 	    mode: string;
 	    homepage: string;
 	    baseUrl?: string;
+	    supportsWebsockets: boolean;
 	    tags: string[];
 	    note: string;
 	    rawJson?: string;
@@ -140,6 +141,7 @@ export namespace main {
 	        this.mode = source["mode"];
 	        this.homepage = source["homepage"];
 	        this.baseUrl = source["baseUrl"];
+	        this.supportsWebsockets = source["supportsWebsockets"];
 	        this.tags = source["tags"];
 	        this.note = source["note"];
 	        this.rawJson = source["rawJson"];
@@ -208,6 +210,7 @@ export namespace main {
 	    mode: string;
 	    homepage: string;
 	    baseUrl: string;
+	    supportsWebsockets?: boolean;
 	    tags: string[];
 	    note: string;
 	    filePath: string;
@@ -222,6 +225,7 @@ export namespace main {
 	        this.mode = source["mode"];
 	        this.homepage = source["homepage"];
 	        this.baseUrl = source["baseUrl"];
+	        this.supportsWebsockets = source["supportsWebsockets"];
 	        this.tags = source["tags"];
 	        this.note = source["note"];
 	        this.filePath = source["filePath"];
@@ -232,6 +236,7 @@ export namespace main {
 	    mode: string;
 	    homepage: string;
 	    baseUrl: string;
+	    supportsWebsockets?: boolean;
 	    tags: string[];
 	    note: string;
 	    rawJson: string;
@@ -246,6 +251,7 @@ export namespace main {
 	        this.mode = source["mode"];
 	        this.homepage = source["homepage"];
 	        this.baseUrl = source["baseUrl"];
+	        this.supportsWebsockets = source["supportsWebsockets"];
 	        this.tags = source["tags"];
 	        this.note = source["note"];
 	        this.rawJson = source["rawJson"];
@@ -256,6 +262,7 @@ export namespace main {
 	    mode: string;
 	    homepage: string;
 	    baseUrl: string;
+	    supportsWebsockets?: boolean;
 	    tags: string[];
 	    note: string;
 	
@@ -269,6 +276,7 @@ export namespace main {
 	        this.mode = source["mode"];
 	        this.homepage = source["homepage"];
 	        this.baseUrl = source["baseUrl"];
+	        this.supportsWebsockets = source["supportsWebsockets"];
 	        this.tags = source["tags"];
 	        this.note = source["note"];
 	    }
@@ -340,6 +348,7 @@ export namespace main {
 	    mode: string;
 	    homepage: string;
 	    baseUrl: string;
+	    supportsWebsockets?: boolean;
 	    tags: string[];
 	    note: string;
 	    rawJson: string;
@@ -355,6 +364,7 @@ export namespace main {
 	        this.mode = source["mode"];
 	        this.homepage = source["homepage"];
 	        this.baseUrl = source["baseUrl"];
+	        this.supportsWebsockets = source["supportsWebsockets"];
 	        this.tags = source["tags"];
 	        this.note = source["note"];
 	        this.rawJson = source["rawJson"];

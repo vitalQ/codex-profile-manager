@@ -206,12 +206,13 @@ func (a *App) ImportProfileFromCurrentAuth(input ImportProfileInput) (ProfileDTO
 	}
 
 	record, err := a.profiles.CreateFromBytes(profile.CreateInput{
-		Name:     input.Name,
-		Mode:     input.Mode,
-		Homepage: input.Homepage,
-		BaseURL:  input.BaseURL,
-		Tags:     input.Tags,
-		Note:     input.Note,
+		Name:               input.Name,
+		Mode:               input.Mode,
+		Homepage:           input.Homepage,
+		BaseURL:            input.BaseURL,
+		SupportsWebSockets: input.SupportsWebSockets,
+		Tags:               input.Tags,
+		Note:               input.Note,
 	}, payload)
 	if err != nil {
 		return ProfileDTO{}, err
@@ -234,12 +235,13 @@ func (a *App) ImportProfileFromFile(input ImportProfileFromFileInput) (ProfileDT
 	}
 
 	record, err := a.profiles.CreateFromBytes(profile.CreateInput{
-		Name:     input.Name,
-		Mode:     input.Mode,
-		Homepage: input.Homepage,
-		BaseURL:  input.BaseURL,
-		Tags:     input.Tags,
-		Note:     input.Note,
+		Name:               input.Name,
+		Mode:               input.Mode,
+		Homepage:           input.Homepage,
+		BaseURL:            input.BaseURL,
+		SupportsWebSockets: input.SupportsWebSockets,
+		Tags:               input.Tags,
+		Note:               input.Note,
 	}, payload)
 	if err != nil {
 		return ProfileDTO{}, err
@@ -257,12 +259,13 @@ func (a *App) ImportProfileFromRaw(input ImportProfileFromRawInput) (ProfileDTO,
 	}
 
 	record, err := a.profiles.CreateFromBytes(profile.CreateInput{
-		Name:     input.Name,
-		Mode:     input.Mode,
-		Homepage: input.Homepage,
-		BaseURL:  input.BaseURL,
-		Tags:     input.Tags,
-		Note:     input.Note,
+		Name:               input.Name,
+		Mode:               input.Mode,
+		Homepage:           input.Homepage,
+		BaseURL:            input.BaseURL,
+		SupportsWebSockets: input.SupportsWebSockets,
+		Tags:               input.Tags,
+		Note:               input.Note,
 	}, []byte(input.RawJSON))
 	if err != nil {
 		return ProfileDTO{}, err
@@ -284,6 +287,9 @@ func (a *App) UpdateProfile(input UpdateProfileInput) (ProfileDTO, error) {
 	existing.Mode = input.Mode
 	existing.Homepage = input.Homepage
 	existing.BaseURL = input.BaseURL
+	if input.SupportsWebSockets != nil {
+		existing.SupportsWebSockets = input.SupportsWebSockets
+	}
 	existing.Tags = input.Tags
 	existing.Note = input.Note
 	existing.RawJSON = input.RawJSON

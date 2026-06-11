@@ -152,6 +152,72 @@ func TestSwitchProfileAPIKeyWritesManagedConfig(t *testing.T) {
 	if !strings.Contains(string(configPayload), `base_url = "https://example.com/v1"`) {
 		t.Fatalf("expected config.toml to contain managed base_url: %s", string(configPayload))
 	}
+	if !strings.Contains(string(configPayload), `supports_websockets = true`) {
+		t.Fatalf("expected config.toml to contain supports_websockets: %s", string(configPayload))
+	}
+}
+
+func TestSwitchProfileAPIKeyOmitsWebSocketConfigWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	targetAuthPath := filepath.Join(tempDir, ".codex", "auth.json")
+	if err := os.MkdirAll(filepath.Dir(targetAuthPath), 0o700); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	appPaths := paths.AppPaths{
+		BaseDir:           tempDir,
+		ProfilesDir:       filepath.Join(tempDir, "profiles"),
+		LogsDir:           filepath.Join(tempDir, "logs"),
+		SettingsFile:      filepath.Join(tempDir, "settings.json"),
+		ProfilesIndexFile: filepath.Join(tempDir, "profiles.json"),
+		AuditLogFile:      filepath.Join(tempDir, "logs", "audit.jsonl"),
+	}
+	for _, dir := range []string{appPaths.BaseDir, appPaths.ProfilesDir, appPaths.LogsDir} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatalf("MkdirAll(%s) error = %v", dir, err)
+		}
+	}
+
+	configService, err := config.NewService(appPaths)
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	if _, err := configService.Save(config.Settings{
+		TargetAuthPath: targetAuthPath,
+		Theme:          "system",
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	profileService := profile.NewService(appPaths.ProfilesIndexFile)
+	supportsWebSockets := false
+	record, err := profileService.CreateFromBytes(profile.CreateInput{
+		Name:               "api-provider",
+		Mode:               profile.ModeAPIKey,
+		BaseURL:            "https://example.com/v1",
+		SupportsWebSockets: &supportsWebSockets,
+	}, []byte(`{"OPENAI_API_KEY":"sk-123"}`))
+	if err != nil {
+		t.Fatalf("CreateFromBytes() error = %v", err)
+	}
+
+	auditService := audit.NewService(appPaths.AuditLogFile)
+	detectorService := detector.NewService(profileService)
+	switcherService := switcher.NewService(configService, profileService, auditService, detectorService)
+
+	if _, err := switcherService.SwitchProfile(record.ID); err != nil {
+		t.Fatalf("SwitchProfile() error = %v", err)
+	}
+
+	configPayload, err := os.ReadFile(codexcfg.ConfigPathForAuthPath(targetAuthPath))
+	if err != nil {
+		t.Fatalf("ReadFile(config.toml) error = %v", err)
+	}
+	if strings.Contains(string(configPayload), `supports_websockets`) {
+		t.Fatalf("expected config.toml to omit supports_websockets: %s", string(configPayload))
+	}
 }
 
 func TestSwitchProfileOfficialRemovesManagedConfig(t *testing.T) {
@@ -163,7 +229,7 @@ func TestSwitchProfileOfficialRemovesManagedConfig(t *testing.T) {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
 	configPath := codexcfg.ConfigPathForAuthPath(targetAuthPath)
-	if err := codexcfg.EnsureManagedCustomProvider(configPath, "https://example.com/v1"); err != nil {
+	if err := codexcfg.EnsureManagedCustomProvider(configPath, "https://example.com/v1", true); err != nil {
 		t.Fatalf("EnsureManagedCustomProvider() error = %v", err)
 	}
 

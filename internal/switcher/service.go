@@ -183,7 +183,7 @@ func verifyTarget(targetPath, expectedFingerprint string) error {
 func syncConfigForProfile(configPath string, record profile.Record) error {
 	switch record.Mode {
 	case profile.ModeAPIKey:
-		if err := codexcfg.EnsureManagedCustomProvider(configPath, record.BaseURL); err != nil {
+		if err := codexcfg.EnsureManagedCustomProvider(configPath, record.BaseURL, record.SupportsWebSocketsEnabled()); err != nil {
 			return fmt.Errorf("写入 config.toml 失败: %w", err)
 		}
 	default:
@@ -214,6 +214,9 @@ func verifyConfig(configPath string, record profile.Record) error {
 		}
 		if state.BaseURL != record.BaseURL {
 			return fmt.Errorf("切换后校验失败，config.toml 的 Base URL 不匹配")
+		}
+		if state.SupportsWebSockets != record.SupportsWebSocketsEnabled() {
+			return fmt.Errorf("切换后校验失败，config.toml 的 WebSocket 配置不匹配")
 		}
 	default:
 		conflict, err := codexcfg.HasUnmanagedCustomProvider(configPath)

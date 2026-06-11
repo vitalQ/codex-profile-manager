@@ -21,7 +21,7 @@ func TestCurrentMatchesAPIKeyProfileWhenManagedConfigMatchesBaseURL(t *testing.T
 	if err := os.WriteFile(targetAuthPath, []byte(`{"OPENAI_API_KEY":"sk-demo"}`), 0o600); err != nil {
 		t.Fatalf("WriteFile(auth.json) error = %v", err)
 	}
-	if err := codexcfg.EnsureManagedCustomProvider(codexcfg.ConfigPathForAuthPath(targetAuthPath), "https://example.com/v1"); err != nil {
+	if err := codexcfg.EnsureManagedCustomProvider(codexcfg.ConfigPathForAuthPath(targetAuthPath), "https://example.com/v1", true); err != nil {
 		t.Fatalf("EnsureManagedCustomProvider() error = %v", err)
 	}
 
@@ -42,6 +42,41 @@ func TestCurrentMatchesAPIKeyProfileWhenManagedConfigMatchesBaseURL(t *testing.T
 	}
 	if !current.Managed || current.ProfileID != record.ID {
 		t.Fatalf("unexpected current state: %#v", current)
+	}
+}
+
+func TestCurrentDoesNotMatchAPIKeyProfileWhenWebSocketSettingDiffers(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	targetAuthPath := filepath.Join(tempDir, ".codex", "auth.json")
+	if err := os.MkdirAll(filepath.Dir(targetAuthPath), 0o700); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(targetAuthPath, []byte(`{"OPENAI_API_KEY":"sk-demo"}`), 0o600); err != nil {
+		t.Fatalf("WriteFile(auth.json) error = %v", err)
+	}
+	if err := codexcfg.EnsureManagedCustomProvider(codexcfg.ConfigPathForAuthPath(targetAuthPath), "https://example.com/v1", false); err != nil {
+		t.Fatalf("EnsureManagedCustomProvider() error = %v", err)
+	}
+
+	profiles := profile.NewService(filepath.Join(tempDir, "profiles.json"))
+	record, err := profiles.CreateFromBytes(profile.CreateInput{
+		Name:    "api",
+		Mode:    profile.ModeAPIKey,
+		BaseURL: "https://example.com/v1",
+	}, []byte(`{"OPENAI_API_KEY":"sk-demo"}`))
+	if err != nil {
+		t.Fatalf("CreateFromBytes() error = %v", err)
+	}
+
+	service := detector.NewService(profiles)
+	current, err := service.Current(targetAuthPath, record.ID)
+	if err != nil {
+		t.Fatalf("Current() error = %v", err)
+	}
+	if current.Managed {
+		t.Fatalf("expected unmanaged current state, got %#v", current)
 	}
 }
 

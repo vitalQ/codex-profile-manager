@@ -146,11 +146,43 @@ func TestCreateAPIKeyProfileValidatesBaseURLAndPayload(t *testing.T) {
 	if record.BaseURL != "https://example.com/v1" {
 		t.Fatalf("record.BaseURL = %s", record.BaseURL)
 	}
+	if !record.SupportsWebSocketsEnabled() {
+		t.Fatalf("expected API Key profiles to default to WebSocket support")
+	}
 
 	if _, err := service.CreateFromBytes(profile.CreateInput{
 		Name: "invalid-api-key",
 		Mode: profile.ModeAPIKey,
 	}, []byte(`{"OPENAI_API_KEY":"sk-demo"}`)); err == nil {
 		t.Fatalf("expected missing base URL validation error")
+	}
+}
+
+func TestCreateAPIKeyProfilePersistsDisabledWebSockets(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	service := profile.NewService(filepath.Join(tempDir, "profiles.json"))
+	supportsWebSockets := false
+
+	record, err := service.CreateFromBytes(profile.CreateInput{
+		Name:               "api-key",
+		Mode:               profile.ModeAPIKey,
+		BaseURL:            "https://example.com/v1",
+		SupportsWebSockets: &supportsWebSockets,
+	}, []byte(`{"OPENAI_API_KEY":"sk-demo"}`))
+	if err != nil {
+		t.Fatalf("CreateFromBytes() error = %v", err)
+	}
+	if record.SupportsWebSocketsEnabled() {
+		t.Fatalf("expected WebSocket support to be disabled")
+	}
+
+	reloaded, err := profile.NewService(filepath.Join(tempDir, "profiles.json")).Get(record.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if reloaded.SupportsWebSocketsEnabled() {
+		t.Fatalf("expected disabled WebSocket support to persist")
 	}
 }

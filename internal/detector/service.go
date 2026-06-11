@@ -177,7 +177,9 @@ func profileMatchesCurrent(item profile.Record, fingerprint string, configState 
 
 	switch item.Mode {
 	case profile.ModeAPIKey:
-		return configState.Present && strings.TrimSpace(item.BaseURL) == strings.TrimSpace(configState.BaseURL)
+		return configState.Present &&
+			strings.TrimSpace(item.BaseURL) == strings.TrimSpace(configState.BaseURL) &&
+			item.SupportsWebSocketsEnabled() == configState.SupportsWebSockets
 	default:
 		return !configState.Present && !hasUnmanagedCustom
 	}

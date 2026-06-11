@@ -13,6 +13,7 @@ export type ProfileRecord = {
   mode: "official" | "api_key" | string;
   homepage: string;
   baseUrl?: string;
+  supportsWebsockets: boolean;
   tags: string[];
   note: string;
   rawJson?: string;
@@ -68,6 +69,7 @@ export type ImportProfileInput = {
   mode: "official" | "api_key" | string;
   homepage: string;
   baseUrl: string;
+  supportsWebsockets: boolean;
   tags: string[];
   note: string;
 };
@@ -86,6 +88,7 @@ export type UpdateProfileInput = {
   mode: "official" | "api_key" | string;
   homepage: string;
   baseUrl: string;
+  supportsWebsockets: boolean;
   tags: string[];
   note: string;
   rawJson: string;

@@ -17,6 +17,7 @@ type EditorState = {
   name: string;
   homepage: string;
   baseUrl: string;
+  supportsWebsockets: boolean;
   note: string;
   apiKey: string;
   rawJson: string;
@@ -30,6 +31,7 @@ const emptyEditor = (): EditorState => ({
   name: "",
   homepage: "",
   baseUrl: "",
+  supportsWebsockets: true,
   note: "",
   apiKey: "",
   rawJson: "{\n  \"auth_mode\": \"chatgpt\"\n}",
@@ -195,6 +197,7 @@ function App() {
         name: detail.name,
         homepage: detail.homepage,
         baseUrl: detail.baseUrl ?? "",
+        supportsWebsockets: detail.supportsWebsockets ?? true,
         note: detail.note,
         apiKey: extractAPIKey(detail.rawJson ?? ""),
         rawJson: detail.rawJson ?? "{\n  \"auth_mode\": \"chatgpt\"\n}",
@@ -231,6 +234,7 @@ function App() {
         mode: normalizeProviderMode(profile.mode),
         homepage: profile.homepage,
         baseUrl: profile.baseUrl ?? "",
+        supportsWebsockets: profile.supportsWebsockets ?? true,
         note: profile.note,
         tags: profile.tags,
         rawJson: detail.rawJson ?? "",
@@ -359,6 +363,7 @@ function App() {
       mode: providerMode,
       homepage: editor.homepage.trim(),
       baseUrl: editor.baseUrl.trim(),
+      supportsWebsockets: editor.supportsWebsockets,
       note: editor.note.trim(),
       tags: [],
     };
@@ -386,6 +391,7 @@ function App() {
           mode: payload.mode,
           homepage: payload.homepage,
           baseUrl: payload.baseUrl,
+          supportsWebsockets: payload.supportsWebsockets,
           note: payload.note,
           tags: [],
           rawJson: finalRawJson,
@@ -587,6 +593,7 @@ function App() {
                         ...current,
                         providerMode: "api_key",
                         importMode: "raw",
+                        supportsWebsockets: current.supportsWebsockets ?? true,
                         rawJson: buildAPIKeyAuthJSON(current.apiKey),
                       }))
                     }
@@ -665,6 +672,12 @@ function App() {
                       onChange={(event) => setEditor((current) => ({ ...current, baseUrl: event.target.value }))}
                     />
                   </Field>
+
+                  <ToggleRow
+                    label="支持 WebSocket"
+                    checked={editor.supportsWebsockets}
+                    onChange={(checked) => setEditor((current) => ({ ...current, supportsWebsockets: checked }))}
+                  />
                 </>
               )}
 
